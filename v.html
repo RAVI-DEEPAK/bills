@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="hi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>PDF</title>
+<style>
+:root{--bg:#F4F5F2;--card:#fff;--ink:#1E2430;--mu:#5C6470;--red:#A3232A;--rule:#DDE1DA}
+@media (prefers-color-scheme:dark){:root{--bg:#14171C;--card:#1C2027;--ink:#E8EAED;--mu:#9AA3AE;--rule:#2C323B}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--red);color:#fff;padding:14px 16px;font-weight:800;font-size:18px}
+main{max-width:860px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:18px}
+h1{font-size:19px;margin:0 0 4px}p{margin:6px 0;color:var(--mu)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:12px;border:0;background:var(--red);color:#fff;font:700 16px system-ui,sans-serif;text-decoration:none;cursor:pointer;margin:12px 8px 0 0}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--rule)}
+iframe{width:100%;height:75vh;border:1px solid var(--rule);border-radius:10px;margin-top:14px;background:#fff}
+</style></head>
+<body><header id="co">PDF</header><main><div class="card" id="box"><p>PDF khul rahi hai…</p></div></main>
+<script>
+(async function () {
+  const box = document.getElementById("box");
+  const say = (h) => (box.innerHTML = h);
+  try {
+    const h = location.hash.slice(1).split(".");
+    if (h.length < 2 || !/^[a-z0-9]+$/.test(h[0])) throw new Error("Link adhoora hai. Poora link dobara kholein.");
+    const owner = location.hostname.split(".")[0], repo = location.pathname.split("/").filter(Boolean)[0] || "";
+    const rp = repo && repo !== "v.html" ? repo : owner + ".github.io";
+    const urls = [`s/${h[0]}.bin`, `https://raw.githubusercontent.com/${owner}/${rp}/main/s/${h[0]}.bin`];
+    let buf = null;
+    for (let t = 0; t < 8 && !buf; t++) {
+      for (const u of urls) { try { const r = await fetch(u + "?t=" + Date.now(), { cache: "no-store" }); if (r.ok) { buf = new Uint8Array(await r.arrayBuffer()); break; } } catch (e) {} }
+      if (!buf) { say("<p>PDF aa rahi hai, thoda ruk jaiye…</p>"); await new Promise((r) => setTimeout(r, 4000)); }
+    }
+    if (!buf) throw new Error("PDF nahi mili. Ho sakta hai link purana ho gaya ho. Bhejne wale se dobara mangwa lijiye.");
+    if (buf[0] !== 80 || buf[1] !== 75 || buf[2] !== 51) throw new Error("File theek nahi hai.");
+    const raw = Uint8Array.from(atob(h[1].replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    let plain;
+    try { plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.slice(3, 15) }, key, buf.slice(15))); }
+    catch (e) { throw new Error("Link galat hai. Poora link dobara kholein."); }
+    const ml = new DataView(plain.buffer).getUint32(0);
+    const meta = JSON.parse(new TextDecoder().decode(plain.slice(4, 4 + ml)));
+    const pdf = new Blob([plain.slice(4 + ml)], { type: "application/pdf" });
+    const url = URL.createObjectURL(pdf);
+    const name = meta.n || "document.pdf";
+    if (meta.c) document.getElementById("co").textContent = meta.c;
+    document.title = name.replace(/\.pdf$/i, "");
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const wide = matchMedia("(min-width: 700px)").matches;
+    say(`<h1>${esc(name.replace(/\.pdf$/i, ""))}</h1><p>${meta.c ? esc(meta.c) + " ne bheja" : ""}</p>
+      <a class="btn" href="${url}" download="${esc(name)}">PDF download karein</a><a class="btn alt" href="${url}" target="_blank" rel="noopener">PDF kholein</a>
+      ${wide ? `<iframe src="${url}" title="PDF"></iframe>` : ""}`);
+  } catch (e) { say(`<h1>PDF nahi khul payi</h1><p>${String(e.message || e)}</p>`); }
+})();
+</script></body></html>
